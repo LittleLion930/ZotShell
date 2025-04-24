@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <fcntl.h>
+
 #define MAX_LINE 80  /* The maximum length command */
 
 int main(int argc, char* argv[])
@@ -27,7 +29,29 @@ fflush(stdout);
 * (3) parent will invoke wait() unless command included &
 */
 
+char input[MAX_LINE];
+fgets(input, MAX_LINE, stdin);
+input[strcspn(input, "\n")] = 0;
 
+int index = 0;
+char *token = strtok(input, " ");
+char *input_file = NULL;
+char *output_file = NULL;
+int redirect_in = 0, redirect_out = 0;
+
+while (token != NULL) {
+	if (strcmp(token, "<") == 0) {
+		redirect_in = 1;
+		token = strtok(NULL, " ");
+		input_file = token;
+	} else if (strcmp(token, ">") == 0) {
+		redirect_out = 1;
+		token = strtok(NULL, " ");
+		output_file = token;
+	}
+	token = strtok(NULL, " ");
+}
+args[index] = NULL;
 
 int status=0;
 pid_t p = fork();
@@ -43,6 +67,21 @@ if(p<0) {
 			status = execvp(history[0], history);
 		}
 	} else {
+
+		if (redirect_in) {
+			int fd0 = open(input_file, O_RDONLY);
+			if (fd0 < 0) { perror("Input redirection failed"); return 1; }
+			dup2(fd0, STDIN_FILENO);
+			close(fd0);
+		}
+
+		if (redirect_out) {
+			int fd1 = open(output_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+			if (fd1 < 0) { perror("Output redirection failed"); return 1; }
+			dup2(fd1, STDOUT_FILENO);
+			close(fd1);
+		}
+
 		status = execvp(args[0], args);
 		for(int i=0;i<sizeof(history);i++) {
 			history[i]=args[i];
