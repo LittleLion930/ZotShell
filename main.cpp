@@ -39,6 +39,8 @@ char *input_file = NULL;
 char *output_file = NULL;
 int redirect_in = 0, redirect_out = 0;
 
+int pipe_flag = 0;
+
 while (token != NULL) {
 	if (strcmp(token, "<") == 0) {
 		redirect_in = 1;
@@ -48,10 +50,75 @@ while (token != NULL) {
 		redirect_out = 1;
 		token = strtok(NULL, " ");
 		output_file = token;
+
+	} else if (strcmp(token, "|") == 0) {
+		pipe_flag = 1;
+		args[index] = NULL;
+	} else {
+		args[index++] = token;
 	}
+
 	token = strtok(NULL, " ");
 }
 args[index] = NULL;
+
+if (pipe_flag) {
+	int pipe_fd[2];
+	if (pipe(pipe_fd) < 0) {
+		perror("Pipe creation failed");
+		should_run = 0;
+		continue;
+	}
+
+	pid_t p1 = fork();
+	if (p1 < 0) {
+		perror("Fork failed");
+		should_run = 0;
+		continue;
+	} else if (p1 == 0) {
+		if (redirect_in) {
+			int fd0 = open(input_file, O_RDONLY);
+			if (fd0 < 0) { perror("Input redirection failed"); return 1; }
+			dup2(fd0, STDIN_FILENO);
+			close(fd0);
+		}
+
+		dup2(pipe_fd[1], STDOUT_FILENO);
+		close(pipe_fd[0]);
+		close(pipe_fd[1]);
+
+		execvp(args[0], args);
+		perror("Exec failed");
+		// exit(1);
+	} else {
+		pid_t p2 = fork();
+		if (p2 < 0) {
+			perror("Fork failed");
+			should_run = 0;
+			continue;
+		} else if (p2 == 0) {
+			if (redirect_out) {
+				int fd1 = open(output_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+				if (fd1 < 0) { perror("Output redirection failed"); return 1; }
+				dup2(fd1, STDOUT_FILENO);
+				close(fd1);
+			}
+
+			dup2(pipe_fd[0], STDIN_FILENO);
+			close(pipe_fd[1]);
+			close(pipe_fd[0]);
+
+			execvp(args[index], &args[index + 1]);
+			perror("Exec failed");
+			// exit(1);
+		} else {
+			close(pipe_fd[0]);
+			close(pipe_fd[1]);
+			wait(NULL);
+			wait(NULL);
+		}
+	}
+} else {
 
 int status=0;
 pid_t p = fork();
@@ -105,7 +172,8 @@ if(p<0) {
 		p=wait(NULL);
 	}
 }
-
+}
+}
 return 0;
 }
-}
+
