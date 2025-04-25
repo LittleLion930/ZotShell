@@ -13,7 +13,6 @@ char *args[MAX_LINE/2 + 1]; /* command line arguments */
 int should_run = 1; /* flag to determine when to exit program */
 char *history[MAX_LINE/2 +1];
 history[0]="NULL";
-int hist_length=0;
 for(int i=0;i<argc-1;i++) {
 	args[i]=argv[i+1];
 }
@@ -46,8 +45,7 @@ char *args1[MAX_LINE/2 + 1];
 char *args2[MAX_LINE/2 + 1];
 int pipe_mode = 0;
 int a1 = 0, a2 = 0;
-int inter=0;
-int is_history=0;
+
 while (token != NULL) {
 	if (strcmp(token, "<") == 0) {
 		redirect_in = 1;
@@ -57,58 +55,31 @@ while (token != NULL) {
 		redirect_out = 1;
 		token = strtok(NULL, " ");
 		output_file = token;
-
-	} else if(strcmp(token,"!!")==0) {
-		is_history=1;
-	} else if (strcmp(token, "|") == 0) {
+	} else if (strcmp(token,"!!")==0) {
+		
+		for(int i=0;i<sizeof(history);i++) {
+			args[i]=history[i];
+		}
+		args[sizeof(history)]=NULL;	
+	}
+	 else if (strcmp(token, "|") == 0) {
 		pipe_flag = 1;
 	} else if (pipe_flag) {
-		args2[a2++] = token;
+		args2[a2] = token;
+		history[a2]=token;
+		a2++;
 	} else {
-		args1[a1++] = token;
-		
+		args1[a1] = token;
+		args[a1]=token;
+		history[a1]=token;
+		a1++;
 	}
-	args[inter++]=token;
-
-	
 	token = strtok(NULL, " ");
-	
 }
 args1[a1] = NULL;
 args2[a2] = NULL;
-if(is_history) {
-	for(int i=0;i<hist_length;i++) {
-		printf("%s\n",history[i]);
-		args[i]=history[i];
-	}
-	args[hist_length]=NULL;
-	is_history=0;
-} else {
-	args[inter]=NULL;
-	if(pipe_flag) {
-		for(int i=0;i<a1;i++) {
-			history[i]=args1[i];
-		}
-		history[a1]="|";
-		for(int i=0;i<a2;i++) {
-			history[a1+i+1]=args1[i];
-		}
-		history[a2]=NULL;
-		hist_length=a1+a2;
-	} else {
-		for(int i=0;i<inter;i++) {
-			history[i]=args1[i];
-		}
-		history[inter]=NULL;
-		hist_length=inter;
-	}
-	is_history=0;
-} 
-//args[inter]=NULL;
-
-for(int i=0;i<hist_length;i++) {
-	printf("boot %s\n",history[i]);
-}
+args[a1]=NULL;
+history[a1]=NULL;
 
 if (pipe_flag) {
 	int pipe_fd[2];
@@ -174,7 +145,7 @@ if(p<0) {
 	should_run=0;
 	//exit(1);
 } else if(p==0) {
-	if(args[0]=="!!") {		
+	if(args[0]=="!!") {
 		if(strcmp(history[0],"NULL")) {
 			printf("No commands in history\n");
 		} else {
@@ -195,12 +166,12 @@ if(p<0) {
 			dup2(fd1, STDOUT_FILENO);
 			close(fd1);
 		}
+
 		status = execvp(args[0], args);
-		
-		/*for(int i=0;i<sizeof(history);i++) {
+		for(int i=0;i<sizeof(history);i++) {
 			history[i]=args[i];
 		}
-		args[sizeof(history)]=NULL;*/
+		args[sizeof(history)]=NULL;
 	}
 	if(status==-1) {
 		printf("exec fail\n");
