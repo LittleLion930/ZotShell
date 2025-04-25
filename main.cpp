@@ -41,6 +41,11 @@ int redirect_in = 0, redirect_out = 0;
 
 int pipe_flag = 0;
 
+char *args1[MAX_LINE/2 + 1];
+char *args2[MAX_LINE/2 + 1];
+int pipe_mode = 0;
+int a1 = 0, a2 = 0;
+
 while (token != NULL) {
 	if (strcmp(token, "<") == 0) {
 		redirect_in = 1;
@@ -53,14 +58,15 @@ while (token != NULL) {
 
 	} else if (strcmp(token, "|") == 0) {
 		pipe_flag = 1;
-		args[index] = "|";
+	} else if (pipe_flag) {
+		args2[a2++] = token;
 	} else {
-		args[index++] = token;
+		args1[a1++] = token;
 	}
-
 	token = strtok(NULL, " ");
 }
-args[index] = NULL;
+args1[a1] = NULL;
+args2[a2] = NULL;
 
 if (pipe_flag) {
 	int pipe_fd[2];
@@ -70,29 +76,9 @@ if (pipe_flag) {
 		continue;
 	}
 
-	char *args1[MAX_LINE/2 + 1];
-	char *args2[MAX_LINE/2 + 1];
-	int split = 0;
-	int a1 = 0, a2 = 0;
-
-	for (int i = 0; args[i] != NULL; i++) {
-		if (strcmp(args[i], "|") == 0) {
-			split = 1;
-			continue;
-		}
-		if (!split) {
-			args1[a1++] = args[i];
-		} else {
-			args2[a2++] = args[i];
-		}
-	}
-	args1[a1] = NULL;
-	args2[a2] = NULL;
-
 	pid_t p1 = fork();
 	if (p1 < 0) {
 		perror("Fork failed");
-		should_run = 0;
 		continue;
 	} else if (p1 == 0) {
 		if (redirect_in) {
@@ -107,14 +93,13 @@ if (pipe_flag) {
 		close(pipe_fd[1]);
 
 		execvp(args1[0], args1);
-		perror("execvp failed for left-hand command");
-		return 1;
+		perror("Execvp left failed");
+		_exit(1);
 	} 
 
 	pid_t p2 = fork();
 	if (p2 < 0) {
 		perror("Fork failed");
-		should_run = 0;
 		continue;
 	} else if (p2 == 0) {
 		if (redirect_out) {
@@ -129,8 +114,8 @@ if (pipe_flag) {
 		close(pipe_fd[0]);
 
 		execvp(args2[0], args2);
-		perror("execvp failed for right-hand command");
-		return 1;
+		perror("Execvp right failed");
+		_exit(1);
 	}
 
 	close(pipe_fd[0]);
