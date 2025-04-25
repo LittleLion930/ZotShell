@@ -105,7 +105,7 @@ if (pipe_flag) {
 		close(pipe_fd[1]);
 
 		execvp(args[0], args);
-		perror("Exec failed");
+		perror("Exec failed for left-hand command");
 		return 1;
 	} else {
 		pid_t p2 = fork();
@@ -125,8 +125,8 @@ if (pipe_flag) {
 			close(pipe_fd[1]);
 			close(pipe_fd[0]);
 
-			execvp(args[index], &args[index + 1]);
-			perror("Exec failed");
+			execvp(args2[0], args2);
+			perror("execvp failed for right-hand command");
 			return 1;
 		} else {
 			close(pipe_fd[0]);
