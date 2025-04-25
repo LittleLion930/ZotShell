@@ -70,6 +70,23 @@ if (pipe_flag) {
 		continue;
 	}
 
+	char *args1[MAX_LINE/2 + 1];
+	char *args2[MAX_LINE/2 + 1];
+	int split_index = 0;
+
+	for (int i = 0; args[i] != NULL; i++) {
+		if (strcmp(args[i], "|") == 0) {
+			split_index = i;
+			break;
+		}
+	}
+
+	int j = 0;
+	for (int i = split_index + 1; args[i] != NULL; i++, j++) {
+		args2[j] = args[i];
+	}
+	args2[j] = NULL;
+
 	pid_t p1 = fork();
 	if (p1 < 0) {
 		perror("Fork failed");
@@ -89,7 +106,7 @@ if (pipe_flag) {
 
 		execvp(args[0], args);
 		perror("Exec failed");
-		// exit(1);
+		return 1;
 	} else {
 		pid_t p2 = fork();
 		if (p2 < 0) {
@@ -110,12 +127,12 @@ if (pipe_flag) {
 
 			execvp(args[index], &args[index + 1]);
 			perror("Exec failed");
-			// exit(1);
+			return 1;
 		} else {
 			close(pipe_fd[0]);
 			close(pipe_fd[1]);
-			wait(NULL);
-			wait(NULL);
+			waitpid(p1, NULL, 0);
+			waitpid(p2, NULL, 0);
 		}
 	}
 } else {
