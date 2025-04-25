@@ -53,7 +53,7 @@ while (token != NULL) {
 
 	} else if (strcmp(token, "|") == 0) {
 		pipe_flag = 1;
-		args[index] = NULL;
+		args[index] = "|";
 	} else {
 		args[index++] = token;
 	}
@@ -72,20 +72,22 @@ if (pipe_flag) {
 
 	char *args1[MAX_LINE/2 + 1];
 	char *args2[MAX_LINE/2 + 1];
-	int split_index = 0;
+	int split = 0;
+	int a1 = 0, a2 = 0;
 
 	for (int i = 0; args[i] != NULL; i++) {
 		if (strcmp(args[i], "|") == 0) {
-			split_index = i;
-			break;
+			split = 1;
+			continue;
+		}
+		if (!split) {
+			args1[a1++] = args[i];
+		} else {
+			args2[a2++] = args[i];
 		}
 	}
-
-	int j = 0;
-	for (int i = split_index + 1; args[i] != NULL; i++, j++) {
-		args2[j] = args[i];
-	}
-	args2[j] = NULL;
+	args1[a1] = NULL;
+	args2[a2] = NULL;
 
 	pid_t p1 = fork();
 	if (p1 < 0) {
@@ -104,38 +106,39 @@ if (pipe_flag) {
 		close(pipe_fd[0]);
 		close(pipe_fd[1]);
 
-		execvp(args[0], args);
-		perror("Exec failed for left-hand command");
+		execvp(args1[0], args1);
+		perror("execvp failed for left-hand command");
 		return 1;
-	} else {
-		pid_t p2 = fork();
-		if (p2 < 0) {
-			perror("Fork failed");
-			should_run = 0;
-			continue;
-		} else if (p2 == 0) {
-			if (redirect_out) {
-				int fd1 = open(output_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-				if (fd1 < 0) { perror("Output redirection failed"); return 1; }
-				dup2(fd1, STDOUT_FILENO);
-				close(fd1);
-			}
+	} 
 
-			dup2(pipe_fd[0], STDIN_FILENO);
-			close(pipe_fd[1]);
-			close(pipe_fd[0]);
-
-			execvp(args2[0], args2);
-			perror("execvp failed for right-hand command");
-			return 1;
-		} else {
-			close(pipe_fd[0]);
-			close(pipe_fd[1]);
-			waitpid(p1, NULL, 0);
-			waitpid(p2, NULL, 0);
+	pid_t p2 = fork();
+	if (p2 < 0) {
+		perror("Fork failed");
+		should_run = 0;
+		continue;
+	} else if (p2 == 0) {
+		if (redirect_out) {
+			int fd1 = open(output_file, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+			if (fd1 < 0) { perror("Output redirection failed"); return 1; }
+			dup2(fd1, STDOUT_FILENO);
+			close(fd1);
 		}
+
+		dup2(pipe_fd[0], STDIN_FILENO);
+		close(pipe_fd[1]);
+		close(pipe_fd[0]);
+
+		execvp(args2[0], args2);
+		perror("execvp failed for right-hand command");
+		return 1;
 	}
-} else {
+
+	close(pipe_fd[0]);
+	close(pipe_fd[1]);
+	wait(NULL);
+	wait(NULL);
+	continue;
+}
 
 int status=0;
 pid_t p = fork();
@@ -188,7 +191,6 @@ if(p<0) {
 	if(count=0) {
 		p=wait(NULL);
 	}
-}
 }
 }
 return 0;
