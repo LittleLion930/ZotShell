@@ -11,12 +11,15 @@ int main(int argc, char* argv[])
 { 
 char *args[MAX_LINE/2 + 1]; /* command line arguments */
 int should_run = 1; /* flag to determine when to exit program */
-char *history[MAX_LINE/2 +1];
-history[0]="NULL";
-for(int i=0;i<argc-1;i++) {
+/* char *history[MAX_LINE/2 +1];
+history[0]="NULL"; */
+
+char last_command[MAX_LINE] = "";
+
+/* for(int i=0;i<argc-1;i++) {
 	args[i]=argv[i+1];
 }
-args[argc-1]=NULL;
+args[argc-1]=NULL; */
 
 while (should_run) {
 printf("osh&#x003E;");
@@ -32,6 +35,18 @@ fflush(stdout);
 char input[MAX_LINE];
 fgets(input, MAX_LINE, stdin);
 input[strcspn(input, "\n")] = 0;
+
+if (strcmp(input, "!!") == 0) {
+	if (strlen(last_command) == 0) {
+		printf("No commands in history.\n");
+		continue;
+	} else {
+		printf("%s\n", last_command);
+		strcpy(input, last_command);
+	}
+} else {
+	strcpy(last_command, input);
+}
 
 int index = 0;
 char *token = strtok(input, " ");
@@ -55,31 +70,31 @@ while (token != NULL) {
 		redirect_out = 1;
 		token = strtok(NULL, " ");
 		output_file = token;
-	} else if (strcmp(token,"!!")==0) {
+	/* } else if (strcmp(token,"!!")==0) {
 		
 		for(int i=0;i<sizeof(history);i++) {
 			args[i]=history[i];
 		}
-		args[sizeof(history)]=NULL;	
-	}
+		args[sizeof(history)]=NULL;	*/
+	} 
 	 else if (strcmp(token, "|") == 0) {
 		pipe_flag = 1;
 	} else if (pipe_flag) {
-		args2[a2] = token;
-		history[a2]=token;
-		a2++;
+		args2[a2++] = token;
+		// history[a2]=token;
+		// a2++;
 	} else {
 		args1[a1] = token;
-		args[a1]=token;
-		history[a1]=token;
+		args[index++]=token;
+		// history[a1]=token;
 		a1++;
 	}
 	token = strtok(NULL, " ");
 }
 args1[a1] = NULL;
 args2[a2] = NULL;
-args[a1]=NULL;
-history[a1]=NULL;
+args[index]=NULL;
+// history[a1]=NULL;
 
 if (pipe_flag) {
 	int pipe_fd[2];
@@ -145,13 +160,13 @@ if(p<0) {
 	should_run=0;
 	//exit(1);
 } else if(p==0) {
-	if(args[0]=="!!") {
+	/* if(args[0]=="!!") {
 		if(strcmp(history[0],"NULL")) {
 			printf("No commands in history\n");
 		} else {
 			status = execvp(history[0], history);
 		}
-	} else {
+	} else { */
 
 		if (redirect_in) {
 			int fd0 = open(input_file, O_RDONLY);
@@ -167,8 +182,24 @@ if(p<0) {
 			close(fd1);
 		}
 
-		status = execvp(args[0], args);
-		for(int i=0;i<sizeof(history);i++) {
+		execvp(args[0], args);
+		perror("execvp");
+		_exit(1);
+
+	} else {
+		int background = 0;
+		for (int i = 0; args[i] != NULL; i++) {
+			if (strcmp(args[i], "&") == 0) {
+				background = 1;
+				args[i] = NULL;
+				break;
+			}
+		}
+		if (!background) wait(NULL);
+	}
+}
+
+	/* for(int i=0;i<sizeof(history);i++) {
 			history[i]=args[i];
 		}
 		args[sizeof(history)]=NULL;
@@ -190,6 +221,6 @@ if(p<0) {
 		p=wait(NULL);
 	}
 }
-}
+} */
 return 0;
 }
